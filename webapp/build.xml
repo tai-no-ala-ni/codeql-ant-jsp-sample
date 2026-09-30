@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  業務 Web アプリ。
+  CodeQL は .jsp を直接解析できないため、jspc ターゲットで Jasper により
+  JSP を Java ソースに変換し、javac でコンパイルする（=解析対象に含まれる）。
+-->
+<project name="webapp" default="war" basedir=".">
+    <property name="src.dir" value="src"/>
+    <property name="web.dir" value="web"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="jsp.src.dir" value="${build.dir}/jsp-src"/>
+    <property name="jsp.classes.dir" value="${build.dir}/jsp-classes"/>
+    <property name="dist.dir" value="dist"/>
+    <property name="lib.dir" value="../lib"/>
+    <property name="framework.jar" value="../framework/dist/example-framework.jar"/>
+
+    <path id="tomcat.classpath">
+        <fileset dir="${lib.dir}" includes="*.jar"/>
+    </path>
+
+    <path id="compile.classpath">
+        <path refid="tomcat.classpath"/>
+        <pathelement location="${framework.jar}"/>
+    </path>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" release="17"
+               encoding="UTF-8" includeantruntime="false" debug="true">
+            <classpath refid="compile.classpath"/>
+        </javac>
+    </target>
+
+    <!-- JSP -> Java 変換 (Jasper JspC) -> javac -->
+    <target name="jspc" depends="compile">
+        <mkdir dir="${jsp.src.dir}"/>
+        <mkdir dir="${jsp.classes.dir}"/>
+        <java classname="org.apache.jasper.JspC" fork="true" failonerror="true">
+            <classpath>
+                <path refid="tomcat.classpath"/>
+                <!-- JspC は org.apache.tools.ant.Task を継承しているため ant.jar が必要 -->
+                <pathelement location="${ant.home}/lib/ant.jar"/>
+            </classpath>
+            <arg value="-uriroot"/>
+            <arg file="${web.dir}"/>
+            <arg value="-d"/>
+            <arg file="${jsp.src.dir}"/>
+            <arg value="-javaEncoding"/>
+            <arg value="UTF-8"/>
+            <arg value="-failFast"/>
+        </java>
+        <javac srcdir="${jsp.src.dir}" destdir="${jsp.classes.dir}" release="17"
+               encoding="UTF-8" includeantruntime="false" debug="true">
+            <classpath>
+                <path refid="compile.classpath"/>
+                <pathelement location="${classes.dir}"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <!-- JSP の事前コンパイル結果は解析・構文チェック用。war には JSP をそのまま入れる -->
+    <target name="war" depends="jspc">
+        <mkdir dir="${dist.dir}"/>
+        <war destfile="${dist.dir}/sample.war" webxml="${web.dir}/WEB-INF/web.xml">
+            <fileset dir="${web.dir}" excludes="WEB-INF/web.xml"/>
+            <classes dir="${classes.dir}"/>
+            <lib file="${framework.jar}"/>
+        </war>
+    </target>
+</project>
