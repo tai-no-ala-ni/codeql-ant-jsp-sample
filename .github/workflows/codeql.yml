@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       security-events: write   # 解析結果のアップロード
-      contents: read
+      contents: write          # Dependency submission API（SBOM を依存グラフへ登録）
       actions: read
 
     steps:
@@ -55,3 +55,14 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:java-kotlin
+
+      # lib/ の jar と war を Syft で解析して SBOM を生成し、依存グラフに登録する
+      # （Ant はマニフェストが無く GitHub が依存を認識できないため。登録分は Dependabot alerts の対象になる）
+      - name: Generate SBOM and submit dependency snapshot
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          syft-version: v1.52.0
+          artifact-name: sbom.spdx.json
+          dependency-snapshot: true
