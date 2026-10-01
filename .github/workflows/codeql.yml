@@ -10,7 +10,8 @@ on:
 jobs:
   analyze:
     name: Analyze (java-kotlin, manual build)
-    runs-on: ubuntu-latest
+    # ubuntu-latest は 2026-10-19 から Ubuntu 26 に移行するため固定（移行は別 PR で検証してから）
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       security-events: write   # 解析結果のアップロード
