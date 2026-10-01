@@ -10,12 +10,12 @@ on:
 jobs:
   analyze:
     name: Analyze (java-kotlin, manual build)
-    # build_all.bat をそのまま動かすため Windows ランナーを使う
-    runs-on: windows-latest
+    # ubuntu-latest は 2026-10-19 から Ubuntu 26 に移行するため固定（移行は別 PR で検証してから）
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       security-events: write   # 解析結果のアップロード
-      contents: write          # Dependency submission API（SBOM を依存グラフへ登録）
+      contents: read
       actions: read
 
     steps:
@@ -28,15 +28,12 @@ jobs:
 
       # ランナーイメージに Ant が無い場合だけインストールする
       - name: Ensure Ant
-        shell: pwsh
         run: |
-          if (-not (Get-Command ant -ErrorAction SilentlyContinue)) {
-            $v = '1.10.15'
-            Invoke-WebRequest "https://archive.apache.org/dist/ant/binaries/apache-ant-$v-bin.zip" -OutFile ant.zip
-            Expand-Archive ant.zip -DestinationPath $env:RUNNER_TEMP
-            "ANT_HOME=$env:RUNNER_TEMP\apache-ant-$v" | Out-File $env:GITHUB_ENV -Append
-            "$env:RUNNER_TEMP\apache-ant-$v\bin" | Out-File $env:GITHUB_PATH -Append
-          }
+          if ! command -v ant >/dev/null; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q ant
+          fi
+          ant -version
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -47,22 +44,21 @@ jobs:
           # queries: security-extended
 
       # init と analyze の間で実行された javac が解析対象になる（クリーンビルド必須）
-      - name: Build (Ant x N via batch)
-        shell: cmd
-        run: call build_all.bat
+      - name: Build (Ant x N via shell script)
+        run: bash build_all.sh
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:java-kotlin
 
-      # lib/ の jar と war を Syft で解析して SBOM を生成し、依存グラフに登録する
-      # （Ant はマニフェストが無く GitHub が依存を認識できないため。登録分は Dependabot alerts の対象になる）
-      - name: Generate SBOM and submit dependency snapshot
+      # SBOM はアーティファクトとして保存するだけにする。
+      # 依存関係は pom.xml から GitHub が直接認識するため、依存グラフへの登録（dependency-snapshot）はしない。
+      - name: Generate SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: .
           format: spdx-json
           syft-version: v1.52.0
           artifact-name: sbom.spdx.json
-          dependency-snapshot: true
+          dependency-snapshot: false

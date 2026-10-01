@@ -1,14 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 外部ライブラリを Maven Central から lib/ に取得する（取得済みならスキップ） -->
+<!--
+  外部ライブラリを Maven Central から lib/ に取得する。
+  バージョンは pom.xml の <properties> から読む（バージョン管理は pom.xml に一本化）。
+-->
 <project name="libs" default="fetch" basedir=".">
     <property name="lib.dir" value="${basedir}/lib"/>
-    <property name="tomcat.version" value="10.1.60"/>
-    <property name="ecj.version" value="3.33.0"/>
     <property name="central" value="https://repo1.maven.org/maven2"/>
 
+    <!-- pom.xml の <properties><tomcat.version> は ${pom.properties.tomcat.version} になる -->
+    <xmlproperty file="${basedir}/pom.xml" prefix="pom" keepRoot="false"/>
+    <property name="tomcat.version" value="${pom.properties.tomcat.version}"/>
+    <property name="ecj.version" value="${pom.properties.ecj.version}"/>
+
+    <target name="clean">
+        <delete dir="${lib.dir}"/>
+    </target>
+
     <target name="fetch">
+        <echo message="tomcat.version=${tomcat.version} / ecj.version=${ecj.version} (from pom.xml)"/>
+        <!-- バージョンが変わったときに古い jar が残らないよう毎回取り直す -->
+        <delete dir="${lib.dir}"/>
         <mkdir dir="${lib.dir}"/>
-        <get dest="${lib.dir}" skipexisting="true" usetimestamp="false">
+        <get dest="${lib.dir}" usetimestamp="false">
             <url url="${central}/org/apache/tomcat/embed/tomcat-embed-core/${tomcat.version}/tomcat-embed-core-${tomcat.version}.jar"/>
             <url url="${central}/org/apache/tomcat/embed/tomcat-embed-jasper/${tomcat.version}/tomcat-embed-jasper-${tomcat.version}.jar"/>
             <url url="${central}/org/apache/tomcat/embed/tomcat-embed-el/${tomcat.version}/tomcat-embed-el-${tomcat.version}.jar"/>
